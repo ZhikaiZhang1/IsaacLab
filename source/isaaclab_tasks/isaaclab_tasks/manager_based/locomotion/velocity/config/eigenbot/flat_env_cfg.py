@@ -16,15 +16,16 @@ class EigenbotFlatEnvCfg(EigenbotRoughEnvCfg):
         super().__post_init__()
 
         # override rewards
-        self.rewards.flat_orientation_l2.weight = -5.0
-        self.rewards.dof_torques_l2.weight = -2.5e-5
-        self.rewards.feet_air_time.weight = 0.5
+        self.rewards.flat_orientation_l2.weight = -1.0#-5.0
+        # self.rewards.dof_torques_l2.weight = -2.5e-5
+        # self.rewards.feet_air_time.weight = 0.5
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
+        self.commands.base_velocity.rel_heading_envs = 1.0
         # no height scan
-        self.scene.height_scanner = None
-        self.observations.policy.height_scan = None
+        # self.scene.height_scanner = None
+        # self.observations.policy.height_scan = None
         # no terrain curriculum
         self.curriculum.terrain_levels = None
 

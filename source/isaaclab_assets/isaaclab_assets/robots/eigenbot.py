@@ -20,6 +20,8 @@ Reference:
 """
 
 from isaaclab_assets.sensors.realsense_435 import REAL_SENSE_435
+from isaaclab_assets.sensors.velodyne import VELODYNE_VLP_16_RAYCASTER_CFG
+
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg
 
 import isaaclab.sim as sim_utils
@@ -39,7 +41,7 @@ EIGENBOT_USD_PATH = f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/Biorobotics/eigenbot.usd
 Dynamixel_xh430_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     joint_names_expr=["bendy_joint.*"],
     saturation_effort=120.0,
-    effort_limit=3.3,
+    effort_limit=8,#3.3,
     velocity_limit=1,
     stiffness={".*": 20.0},
     damping={".*": 0.5},
@@ -61,8 +63,8 @@ EIGENBOT_CFG = ArticulationCfg(
             retain_accelerations=False,
             linear_damping=0.0,
             angular_damping=0.0,
-            max_linear_velocity=10.0,
-            max_angular_velocity=10.0,
+            max_linear_velocity=500.0,
+            max_angular_velocity=500.0,
             max_depenetration_velocity=1.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -92,6 +94,7 @@ EIGENBOT_CFG = ArticulationCfg(
             'bendy_joint_M17_S17': np.pi/4,
             'bendy_joint_M18_S18': np.pi/4,
         },
+        joint_vel={".*": 0.0},
     ),
     actuators={"legs": Dynamixel_xh430_SIMPLE_ACTUATOR_CFG},
     soft_joint_pos_limit_factor=0.95,
@@ -110,7 +113,11 @@ Note:
 # Configuration - Sensors.
 ##
 # eigen TODO: needs modification
-EIGENBOT_CAMERA_CFG = REAL_SENSE_435.replace(
-    offset=RayCasterCfg.OffsetCfg(pos=(-0.310, 0.000, 0.159), rot=(0.0, 0.0, 0.0, 1.0))
-)
+# EIGENBOT_CAMERA_CFG = REAL_SENSE_435.replace(
+#     offset=RayCasterCfg.OffsetCfg(pos=(-0.310, 0.000, 0.159), rot=(0.0, 0.0, 0.0, 1.0))
+# )
+
+# EIGENBOT_LIDAR_CFG = VELODYNE_VLP_16_RAYCASTER_CFG.replace(
+#     offset=RayCasterCfg.OffsetCfg(pos=(-0.310, 0.000, 0.159), rot=(0.0, 0.0, 0.0, 1.0))
+# )
 """Configuration for the Velodyne VLP-16 sensor mounted on the ANYmal robot's base."""

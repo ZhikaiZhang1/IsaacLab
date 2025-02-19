@@ -46,6 +46,8 @@ from isaaclab.assets import Articulation
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
 from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNITREE_GO2_CFG  # isort:skip
+from isaaclab_assets.robots.eigenbot import EIGENBOT_CFG
+
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:

@@ -120,22 +120,75 @@ class UniformVelocityCommand(CommandTerm):
             torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b[:, 2]) / max_command_step
         )
 
+
+    # def _resample_commands(self, env_ids):
+    # # Preserve linear velocities along the current heading
+    #     forward = quat_apply(self.base_quat, self.forward_vec)
+    #     heading = torch.atan2(forward[:, 1], forward[:, 0])
+
+    # # Resample linear velocities (x and y) based on the current heading direction
+    #     lin_vel_mag = torch_rand_float(self.command_ranges["lin_vel_x"][0], self.command_ranges["lin_vel_x"][1], (len(env_ids), 1), device=self.device).squeeze(1)
+    
+    # # Apply the heading direction to velocity components
+    #     self.commands[env_ids, 0] = lin_vel_mag * torch.cos(heading[env_ids])  # x component
+    #     self.commands[env_ids, 1] = lin_vel_mag * torch.sin(heading[env_ids])  # y component
+    
+    # # Resample or adjust heading if required, ensuring the bot keeps going in the same direction
+    #     if self.cfg.commands.heading_command:
+    #         self.commands[env_ids, 3] = heading[env_ids]  # Keep heading as current heading
+    #     else:
+    #         self.commands[env_ids, 2] = torch.clip(0.5 * wrap_to_pi(self.commands[env_ids, 3] - heading[env_ids]), -1., 1.)
+
+    # # Set small velocity commands to zero
+    #     self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+        # base_quat_w = self.robot.data.root_quat_w
+
     def _resample_command(self, env_ids: Sequence[int]):
+        # get forward vector of robot
+        heading = self.robot.data.heading_w #???
         # sample velocity commands
         r = torch.empty(len(env_ids), device=self.device)
+        lin_vel_mag = r.uniform_(*self.cfg.ranges.lin_vel_x)
+
         # -- linear velocity - x direction
-        self.vel_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
+        self.vel_command_b[env_ids, 0] = lin_vel_mag * torch.cos(heading[env_ids])  # x component
         # -- linear velocity - y direction
-        self.vel_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
+        self.vel_command_b[env_ids, 1] = lin_vel_mag * torch.sin(heading[env_ids])  # x component
         # -- ang vel yaw - rotation around z
-        self.vel_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+        
         # heading target
         if self.cfg.heading_command:
-            self.heading_target[env_ids] = r.uniform_(*self.cfg.ranges.heading)
+            self.heading_target[env_ids] = heading[env_ids]
             # update heading envs
             self.is_heading_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
+        
+        # heading_error = math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids])
+        # self.vel_command_b[env_ids, 2] = torch.clip(
+        #         self.cfg.heading_control_stiffness * heading_error,
+        #         min=self.cfg.ranges.ang_vel_z[0],
+        #         max=self.cfg.ranges.ang_vel_z[1],
+        #     )
         # update standing envs
         self.is_standing_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+
+    # def _resample_command(self, env_ids: Sequence[int]):
+    #     # sample velocity commands
+    #     r = torch.empty(len(env_ids), device=self.device)
+    #     # -- linear velocity - x direction
+    #     self.vel_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
+    #     # -- linear velocity - y direction
+    #     self.vel_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
+    #     # -- ang vel yaw - rotation around z
+    #     self.vel_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+    #     # heading target
+    #     if self.cfg.heading_command:
+    #         self.heading_target[env_ids] = r.uniform_(*self.cfg.ranges.heading)
+    #         # update heading envs
+    #         self.is_heading_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
+    #     # update standing envs
+    #     self.is_standing_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+
+    
 
     def _update_command(self):
         """Post-processes the velocity command.
@@ -147,6 +200,7 @@ class UniformVelocityCommand(CommandTerm):
         if self.cfg.heading_command:
             # resolve indices of heading envs
             env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
+            # import ipdb;ipdb.set_trace()
             # compute angular velocity
             heading_error = math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids])
             self.vel_command_b[env_ids, 2] = torch.clip(
@@ -250,6 +304,7 @@ class NormalVelocityCommand(UniformVelocityCommand):
         return msg
 
     def _resample_command(self, env_ids):
+        import ipdb;ipdb.set_trace()
         # sample velocity commands
         r = torch.empty(len(env_ids), device=self.device)
         # -- linear velocity - x direction

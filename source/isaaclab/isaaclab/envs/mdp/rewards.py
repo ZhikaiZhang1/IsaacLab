@@ -109,7 +109,7 @@ def base_height_l2(
         For flat terrain, target height is in the world frame. For rough terrain,
         sensor readings can adjust the target height to account for the terrain.
     """
-    # extract the used quantities (to enable type-hinting)
+    # extract the used quantities (to enable type-hinting
     asset: RigidObject = env.scene[asset_cfg.name]
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
@@ -282,7 +282,10 @@ def contact_forces(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEn
 """
 Velocity-tracking rewards.
 """
-
+# def _reward_tracking_lin_vel(self):
+#         # Tracking of linear velocity commands (xy axes)
+#         lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
+#         return torch.exp(-lin_vel_error/self.cfg.rewards.tracking_sigma)
 
 def track_lin_vel_xy_exp(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
@@ -297,7 +300,10 @@ def track_lin_vel_xy_exp(
     )
     return torch.exp(-lin_vel_error / std**2)
 
-
+# def _reward_tracking_ang_vel(self):
+#         # Tracking of angular velocity commands (yaw) 
+#         ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
+#         return torch.exp(-ang_vel_error/self.cfg.rewards.tracking_sigma)
 def track_ang_vel_z_exp(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -307,3 +313,20 @@ def track_ang_vel_z_exp(
     # compute the error
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b[:, 2])
     return torch.exp(-ang_vel_error / std**2)
+
+def reward_stand_still(
+    env: ManagerBasedRLEnv, threshold: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+        # import ipdb;ipdb.set_trace()
+        # Penalize motion at zero commands
+        articulation_asset: Articulation = env.scene[asset_cfg.name]
+        curr_dof_pos = articulation_asset.data.joint_pos[:, asset_cfg.joint_ids]
+        default_dof_pos = articulation_asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+        # return torch.sum(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]), dim=1)
+        # angle = asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+        command = env.command_manager.get_command(command_name)[:, :2]
+        # import ipdb;ipdb.set_trace()
+        return torch.sum(torch.abs(curr_dof_pos - default_dof_pos), dim=1) * (torch.norm(command, dim=1) < threshold) # small command gives 0
+
+# def reward_inactivity(
+#     env: ManagerBasedRLEnv, threshold: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
+#     return

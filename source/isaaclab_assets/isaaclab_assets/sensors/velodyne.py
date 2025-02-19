@@ -8,6 +8,7 @@
 
 from isaaclab.sensors import RayCasterCfg, patterns
 
+
 ##
 # Configuration
 ##

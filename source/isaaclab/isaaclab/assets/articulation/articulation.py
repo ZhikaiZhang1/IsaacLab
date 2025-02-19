@@ -1260,6 +1260,7 @@ class Articulation(AssetBase):
             self.cfg.init_state.joint_pos, self.joint_names
         )
         self._data.default_joint_pos[:, indices_list] = torch.tensor(values_list, device=self.device)
+        # import ipdb;ipdb.set_trace()
         # joint vel
         indices_list, _, values_list = string_utils.resolve_matching_names_values(
             self.cfg.init_state.joint_vel, self.joint_names
@@ -1336,6 +1337,7 @@ class Articulation(AssetBase):
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
+            # import ipdb;ipdb.set_trace()
             # set the passed gains and limits into the simulation
             if isinstance(actuator, ImplicitActuator):
                 self._has_implicit_actuators = True
