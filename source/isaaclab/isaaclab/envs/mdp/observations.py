@@ -20,6 +20,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
+from isaaclab.utils.math import euler_xyz_from_quat
+from isaaclab.utils.math import quat_from_euler_xyz, quat_rotate_inverse, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
@@ -170,8 +172,26 @@ def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float 
     # extract the used quantities (to enable type-hinting)
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
     # height scan: height = sensor_height - hit_point_z - offset
+    # import ipdb;ipdb.set_trace()
     return sensor.data.pos_w[:, 2].unsqueeze(1) - sensor.data.ray_hits_w[..., 2] - offset
 
+def flat_ground(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg,threshold: float=0.05) -> torch.Tensor:
+    """Height scan from the given sensor w.r.t. the sensor's frame.
+
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    """
+    # extract the used quantities (to enable type-hinting)
+    sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
+    return (torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)<=threshold)[:,None]
+
+def rough_ground(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg,threshold: float=0.05) -> torch.Tensor:
+    """Height scan from the given sensor w.r.t. the sensor's frame.
+
+    The provided offset (Defaults to 0.5) is subtracted from the returned values.
+    """
+    # extract the used quantities (to enable type-hinting)
+    sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
+    return (torch.mean(sensor.data.ray_hits_w[..., 2], dim=1)>threshold)[:,None]
 
 def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Incoming spatial wrench on bodies of an articulation in the simulation world frame.
@@ -183,6 +203,18 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     # obtain the link incoming forces in world frame
     link_incoming_forces = asset.root_physx_view.get_link_incoming_joint_force()[:, asset_cfg.body_ids]
     return link_incoming_forces.view(env.num_envs, -1)
+
+def contact_filter(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize undesired contacts as the number of violations that are above a threshold."""
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    # check if contact force is above threshold
+    net_contact_forces = contact_sensor.data.net_forces_w_history
+    is_contact = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
+    last_contact = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[1] > threshold
+    # import ipdb;ipdb.set_trace()
+    # sum over contacts for each environment
+    return torch.logical_or(is_contact, last_contact).float() - 0.5
 
 
 def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
@@ -199,6 +231,47 @@ def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntit
     asset: Imu = env.scene[asset_cfg.name]
     # return the orientation quaternion
     return asset.data.quat_w
+
+def imu_orientation_euler_xy(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Imu sensor orientation in the simulation world frame.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("robot").
+
+    Returns:
+        Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # quat = asset.data.root_quat_w
+    # return the orientation quaternion
+    euler = euler_xyz_from_quat(asset.data.root_quat_w)
+    roll_pitch = torch.stack((euler[0],euler[1]),dim=1)
+    # import ipdb;ipdb.set_trace()
+    return roll_pitch
+
+def delta_yaw_obs(env: ManagerBasedEnv,command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Imu sensor orientation in the simulation world frame.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("robot").
+
+    Returns:
+        Orientation in the world frame in (w, x, y, z) quaternion form. Shape is (num_envs, 4).
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    # quat = asset.data.root_quat_w
+    # return the orientation quaternion
+    yaw = euler_xyz_from_quat(asset.data.root_quat_w)[2]
+    command_heading = env.command_manager.get_term(command_name).heading_target
+    # import ipdb;ipdb.set_trace()
+
+    return wrap_to_pi((command_heading - yaw))[:,None]
 
 
 def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
@@ -529,3 +602,8 @@ Commands.
 def generated_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """The generated command from command term in the command manager with the given name."""
     return env.command_manager.get_command(command_name)
+
+def head_vel_commands(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """The generated command from command term in the command manager with the given name."""
+    vel_cmd = env.command_manager.get_command(command_name)
+    return (vel_cmd[:,0])[:,None]

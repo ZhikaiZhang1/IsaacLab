@@ -57,3 +57,6 @@ class ContactSensorCfg(SensorBaseCfg):
     .. note::
         This attribute is only used when debug visualization is enabled.
     """
+
+    contact_histroy_reward: int = 400
+    num_legs: int = 6

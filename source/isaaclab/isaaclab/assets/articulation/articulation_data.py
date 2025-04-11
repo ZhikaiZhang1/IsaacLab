@@ -423,7 +423,11 @@ class ArticulationData:
         """
         forward_w = math_utils.quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
-
+    
+    @property
+    def forward_w(self):
+        forward_w = math_utils.quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
+        return forward_w
     @property
     def joint_pos(self):
         """Joint positions of all joints. Shape is (num_instances, num_joints)."""

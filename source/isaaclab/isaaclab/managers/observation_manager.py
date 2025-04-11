@@ -255,6 +255,16 @@ class ObservationManager(ManagerBase):
 
         # Cache the observations.
         self._obs_buffer = obs_buffer
+        # import ipdb;ipdb.set_trace()
+        for key, value in obs_buffer.items():
+
+            if isinstance(value, torch.Tensor) and torch.isnan(value).any():
+                print(f"obs NaN detected in {key}")
+                import ipdb;ipdb.set_trace()
+        
+        # if torch.isnan(obs_buffer).any():
+        #     print("NaN detected in observations!")
+        #     import ipdb;ipdb.set_trace()
         return obs_buffer
 
     def compute_group(self, group_name: str) -> torch.Tensor | dict[str, torch.Tensor]:
@@ -327,7 +337,7 @@ class ObservationManager(ManagerBase):
                     group_obs[term_name] = self._group_obs_term_history_buffer[group_name][term_name].buffer
             else:
                 group_obs[term_name] = obs
-
+        # import ipdb;ipdb.set_trace()
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             return torch.cat(list(group_obs.values()), dim=-1)

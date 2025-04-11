@@ -140,6 +140,7 @@ class ContactSensor(SensorBase):
         if env_ids is None:
             env_ids = slice(None)
         # reset accumulative data buffers
+        self._data.force_history_reward_cnt[env_ids] = 0.0
         self._data.net_forces_w[env_ids] = 0.0
         self._data.net_forces_w_history[env_ids] = 0.0
         if self.cfg.history_length > 0:
@@ -261,6 +262,12 @@ class ContactSensor(SensorBase):
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
                 "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
             )
+        # for airtime used for interlimb rule 3
+        self.middle_liftoff_time_lpsi = torch.zeros(self._num_envs, self.cfg.num_legs//3, device=self._device)
+        self.middle_liftoff_time_contra = torch.zeros(self._num_envs, self.cfg.num_legs//3, device=self._device)
+        self.front_liftoff_time_contra = torch.zeros(self._num_envs, self.cfg.num_legs//3, device=self._device)
+        self.hind_liftoff_time_lpsi = torch.zeros(self._num_envs, self.cfg.num_legs//3, device=self._device)
+        self.hind_liftoff_time_contra = torch.zeros(self._num_envs, self.cfg.num_legs//3, device=self._device)
 
         # construct regex expression for the body names
         body_names_regex = r"(" + "|".join(body_names) + r")"
@@ -288,6 +295,10 @@ class ContactSensor(SensorBase):
         self._data.net_forces_w = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
         # optional buffers
         # -- history of net forces
+        self._data.net_forces_w_history_reward = torch.zeros(
+            self._num_envs, self.cfg.contact_histroy_reward, self._num_bodies, 3, device=self._device
+        )
+        self._data.force_history_reward_cnt = torch.zeros(self._num_envs,device=self._device)
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history = torch.zeros(
                 self._num_envs, self.cfg.history_length, self._num_bodies, 3, device=self._device
@@ -310,6 +321,24 @@ class ContactSensor(SensorBase):
             self._data.force_matrix_w = torch.zeros(
                 self._num_envs, self._num_bodies, num_filters, 3, device=self._device
             )
+    def update_liftoff_time(self, reset_cond1,reset_cond2,reset_cond3,reset_cond4,reset_cond5):
+        self.middle_liftoff_time_lpsi += self._sim_physics_dt
+        self.middle_liftoff_time_lpsi *= reset_cond1
+
+        self.middle_liftoff_time_contra += self._sim_physics_dt
+        self.middle_liftoff_time_contra *= reset_cond2
+
+        self.front_liftoff_time_contra += self._sim_physics_dt
+        self.front_liftoff_time_contra *= reset_cond3
+
+        self.hind_liftoff_time_lpsi += self._sim_physics_dt
+        self.hind_liftoff_time_lpsi *= reset_cond4
+
+        self.hind_liftoff_time_contra += self._sim_physics_dt
+        self.hind_liftoff_time_contra *= reset_cond5
+        
+        return self.middle_liftoff_time_lpsi, self.middle_liftoff_time_contra, self.front_liftoff_time_contra, self.hind_liftoff_time_lpsi, self.hind_liftoff_time_contra
+
 
     def _update_buffers_impl(self, env_ids: Sequence[int]):
         """Fills the buffers of the sensor data."""
@@ -326,6 +355,13 @@ class ContactSensor(SensorBase):
         if self.cfg.history_length > 0:
             self._data.net_forces_w_history[env_ids, 1:] = self._data.net_forces_w_history[env_ids, :-1].clone()
             self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
+
+        # get all the force histories for reward computation
+        # net_forces_w_history_reward
+        self._data.force_history_reward_cnt[env_ids] += 1
+        self._data.force_history_reward_cnt[self._data.force_history_reward_cnt>self.cfg.contact_histroy_reward] = self.cfg.contact_histroy_reward
+        self._data.net_forces_w_history_reward[env_ids, 1:] = self._data.net_forces_w_history_reward[env_ids, :-1].clone()
+        self._data.net_forces_w_history_reward[env_ids, 0] = self._data.net_forces_w[env_ids]
 
         # obtain the contact force matrix
         if len(self.cfg.filter_prim_paths_expr) != 0:

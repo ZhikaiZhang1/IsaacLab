@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.math import quat_rotate_inverse, yaw_quat
+from isaaclab.utils.math import euler_xyz_from_quat
+
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -43,6 +45,41 @@ def feet_air_time(
     reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
     return reward
 
+# def compute_time_diff(first_detached, last_contact_time):
+#     # Mask out invalid values by replacing them with a large number and sort
+#     masked_tensor = torch.where(first_detached, last_contact_time, float('inf'))  # Replace False with high value
+#     sorted_tensor, _ = torch.sort(masked_tensor, dim=1)  # Sort, moving invalid values to the right
+
+#     # Compute differences while ignoring large values
+#     valid_mask = sorted_tensor != float('inf')
+#     diff = torch.diff(sorted_tensor, dim=1) * valid_mask[:, 1:]
+#     return diff
+
+# def feet_stride_consistency(
+#     env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float
+# ) -> torch.Tensor:
+#     """Reward long steps taken by the feet using L2-kernel.
+
+#     This function penalises the agent for having very different contact duration among the legs.
+
+#     If the commands are small (i.e. the agent is not supposed to take a step), then the reward is zero.
+#     """
+#     # extract the used quantities (to enable type-hinting)
+#     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+#     # compute the reward
+#     first_contact = contact_sensor.compute_first_contact(env.step_dt)[:, sensor_cfg.body_ids]
+#     first_detached = contact_sensor.compute_first_air(env.step_dt)[:, sensor_cfg.body_ids]
+
+#     last_air_time = contact_sensor.data.last_air_time[:, sensor_cfg.body_ids]
+#     # last_contact_time, is_first_detached
+#     last_contact_time = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
+#     # reward = torch.sum((last_air_time - threshold) * first_contact, dim=1)
+#     # no reward for zero command
+#     time_diff = compute_time_diff(first_detached,last_contact_time)
+
+#     reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+#     return reward
+
 
 def feet_air_time_positive_biped(env, command_name: str, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Reward long steps taken by the feet for bipeds.
@@ -66,7 +103,7 @@ def feet_air_time_positive_biped(env, command_name: str, threshold: float, senso
     return reward
 
 
-def feet_slide(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def feet_slide(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), threshold: float = 1.0) -> torch.Tensor:
     """Penalize feet sliding.
 
     This function penalizes the agent for sliding its feet on the ground. The reward is computed as the
@@ -75,7 +112,7 @@ def feet_slide(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = Scen
     """
     # Penalize feet sliding
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
+    contacts = contact_sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > threshold
     asset = env.scene[asset_cfg.name]
 
     body_vel = asset.data.body_lin_vel_w[:, asset_cfg.body_ids, :2]
@@ -104,4 +141,3 @@ def track_ang_vel_z_world_exp(
     asset = env.scene[asset_cfg.name]
     ang_vel_error = torch.square(env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_w[:, 2])
     return torch.exp(-ang_vel_error / std**2)
-

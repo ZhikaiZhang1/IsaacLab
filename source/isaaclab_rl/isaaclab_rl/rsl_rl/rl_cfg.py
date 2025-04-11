@@ -72,6 +72,12 @@ class RslRlPpoAlgorithmCfg:
     max_grad_norm: float = MISSING
     """The maximum gradient norm."""
 
+    init_weights: list = MISSING,
+    init_weight_scales_policy: list = MISSING,
+    init_weight_scales_value: list = MISSING,
+    optimizer_choice: str = MISSING,
+    weight_decay_val: float = MISSING,
+
 
 @configclass
 class RslRlOnPolicyRunnerCfg:
@@ -147,3 +153,6 @@ class RslRlOnPolicyRunnerCfg:
 
     If regex expression, the latest (alphabetical order) matching file will be loaded.
     """
+
+
+    clip_actions: float | None = None

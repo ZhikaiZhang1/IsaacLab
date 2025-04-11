@@ -40,9 +40,9 @@ EIGENBOT_USD_PATH = f"{ISAACLAB_ASSETS_DATA_DIR}/Robots/Biorobotics/eigenbot.usd
 
 Dynamixel_xh430_SIMPLE_ACTUATOR_CFG = DCMotorCfg(
     joint_names_expr=["bendy_joint.*"],
-    saturation_effort=120.0,
-    effort_limit=8,#3.3,
-    velocity_limit=1,
+    saturation_effort=8,
+    effort_limit=4,#3.3, #8,
+    velocity_limit=2,
     stiffness={".*": 20.0},
     damping={".*": 0.5},
 )
@@ -63,36 +63,60 @@ EIGENBOT_CFG = ArticulationCfg(
             retain_accelerations=False,
             linear_damping=0.0,
             angular_damping=0.0,
-            max_linear_velocity=500.0,
-            max_angular_velocity=500.0,
+            max_linear_velocity=10.0,
+            max_angular_velocity=10.0,
             max_depenetration_velocity=1.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            enabled_self_collisions=True, solver_position_iteration_count=2, solver_velocity_iteration_count=0
         ),
-        # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
+        # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.01, rest_offset=0.0),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.42),
+        # joint_pos={
+        #     'bendy_joint_M1_S1': -np.pi/4,   # [rad]
+        #     'bendy_joint_M2_S2': 0.0,   # [rad]
+        #     'bendy_joint_M3_S3': np.pi/4,
+        #     'bendy_joint_M4_S4': -np.pi/4,
+        #     'bendy_joint_M5_S5': 0.0,
+        #     'bendy_joint_M6_S6': np.pi/4,
+        #     'bendy_joint_M7_S7': np.pi/4,
+        #     'bendy_joint_M8_S8': np.pi/4,
+        #     'bendy_joint_M9_S9': np.pi/4,
+        #     'bendy_joint_M10_S10': np.pi/4,
+        #     'bendy_joint_M11_S11': np.pi/4,
+        #     'bendy_joint_M12_S12': np.pi/4,
+        #     'bendy_joint_M13_S13': np.pi/4,
+        #     'bendy_joint_M14_S14': np.pi/4,
+        #     'bendy_joint_M15_S15': np.pi/4,
+        #     'bendy_joint_M16_S16': np.pi/4,
+        #     'bendy_joint_M17_S17': np.pi/4,
+        #     'bendy_joint_M18_S18': np.pi/4,
+        # },
+        # joint_pos={
+        #     'bendy_joint_.*': 0,   # [rad]
+        # },
+
         joint_pos={
-            'bendy_joint_M1_S1': -np.pi/4,   # [rad]
+            'bendy_joint_M1_S1': 0.0,   # [rad]
             'bendy_joint_M2_S2': 0.0,   # [rad]
-            'bendy_joint_M3_S3': np.pi/4,
-            'bendy_joint_M4_S4': -np.pi/4,
+            'bendy_joint_M3_S3': 0.0,
+            'bendy_joint_M4_S4': 0.0,
             'bendy_joint_M5_S5': 0.0,
-            'bendy_joint_M6_S6': np.pi/4,
-            'bendy_joint_M7_S7': np.pi/4,
-            'bendy_joint_M8_S8': np.pi/4,
-            'bendy_joint_M9_S9': np.pi/4,
-            'bendy_joint_M10_S10': np.pi/4,
-            'bendy_joint_M11_S11': np.pi/4,
-            'bendy_joint_M12_S12': np.pi/4,
-            'bendy_joint_M13_S13': np.pi/4,
-            'bendy_joint_M14_S14': np.pi/4,
-            'bendy_joint_M15_S15': np.pi/4,
-            'bendy_joint_M16_S16': np.pi/4,
-            'bendy_joint_M17_S17': np.pi/4,
-            'bendy_joint_M18_S18': np.pi/4,
+            'bendy_joint_M6_S6': 0.0,
+            'bendy_joint_M7_S7': 0.0,
+            'bendy_joint_M8_S8': 0.0,
+            'bendy_joint_M9_S9': 0.0,
+            'bendy_joint_M10_S10': 0.0,
+            'bendy_joint_M11_S11': 0.0,
+            'bendy_joint_M12_S12': 0.0,
+            'bendy_joint_M13_S13': 0.0,
+            'bendy_joint_M14_S14': 0.0,
+            'bendy_joint_M15_S15': 0.0,
+            'bendy_joint_M16_S16': 0.0,
+            'bendy_joint_M17_S17': 0.0,
+            'bendy_joint_M18_S18': 0.0,
         },
         joint_vel={".*": 0.0},
     ),
@@ -118,6 +142,6 @@ Note:
 # )
 
 # EIGENBOT_LIDAR_CFG = VELODYNE_VLP_16_RAYCASTER_CFG.replace(
-#     offset=RayCasterCfg.OffsetCfg(pos=(-0.310, 0.000, 0.159), rot=(0.0, 0.0, 0.0, 1.0))
+#     offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.000, 0.0), rot=(0.0, 0.0, 0.0, 1.0))
 # )
 """Configuration for the Velodyne VLP-16 sensor mounted on the ANYmal robot's base."""

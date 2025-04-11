@@ -370,6 +370,8 @@ class ManagerBasedEnv:
         self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
+        # import ipdb;ipdb.set_trace()
+        
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
@@ -383,6 +385,7 @@ class ManagerBasedEnv:
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
+
             self.sim.step(render=False)
             # render between steps only if the GUI or an RTX sensor needs it
             # note: we assume the render interval to be the shortest accepted rendering interval.

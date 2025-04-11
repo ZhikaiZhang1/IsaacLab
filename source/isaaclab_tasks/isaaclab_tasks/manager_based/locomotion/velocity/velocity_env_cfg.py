@@ -71,7 +71,8 @@ class MySceneCfg(InteractiveSceneCfg):
         debug_vis=False,
         mesh_prim_paths=["/World/ground"],
     )
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True, 
+        contact_histroy_reward=400, num_legs=6,force_threshold=0.5)
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -100,7 +101,7 @@ class CommandsCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+            lin_vel_x=(-1.0, 1.0), lin_vel_y=(0,0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi/3, math.pi/3)
         ),
     )
 
@@ -119,21 +120,46 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-
+        '''
+        self.obs_buf = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
+                                    self.base_ang_vel  * self.obs_scales.ang_vel,
+                                    imu_obs,
+                                    delta_yaw,
+                                    self.projected_gravity,
+                                    self.commands[:, 0:1] * self.commands_scale,
+                                    # self.commands[:, :3] * self.commands_scale,
+                                    (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
+                                    self.dof_vel * self.obs_scales.dof_vel,
+                                    self.flat_tensor,                        # [batch_size, 1]
+                                    not_flat_tensor,
+                                    self.actions,
+                                    self.contact_filt.float()-0.5
+                                    ),dim=-1)'''
         # observation terms (order preserved)
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        imu_obs = ObsTerm(func=mdp.imu_orientation_euler_xy, noise=Unoise(n_min=-0.03, n_max=0.03))
+        delta_yaw = ObsTerm(func=mdp.delta_yaw_obs, params={"command_name": "base_velocity"}, noise=Unoise(n_min=-0.03, n_max=0.03))
         projected_gravity = ObsTerm(
             func=mdp.projected_gravity,
             noise=Unoise(n_min=-0.05, n_max=0.05),
         )
-        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        velocity_commands = ObsTerm(func=mdp.head_vel_commands, params={"command_name": "base_velocity"})
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
         actions = ObsTerm(func=mdp.last_action)
+        contact_filt = ObsTerm(func=mdp.contact_filter, params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="foot_input_.*"), "threshold": 0.5})
+        flat_ground = ObsTerm(
+            func=mdp.flat_ground,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+        )
+        rough_ground = ObsTerm(
+            func=mdp.rough_ground,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+        )
         height_scan = ObsTerm(
             func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            params={"sensor_cfg": SceneEntityCfg("height_scanner"), "offset": 0.5},
             noise=Unoise(n_min=-0.1, n_max=0.1),
             clip=(-1.0, 1.0),
         )
@@ -156,7 +182,7 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
+            "static_friction_range": (0.5, 1.25),#(0.8, 0.8),
             "dynamic_friction_range": (0.6, 0.6),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 64,
@@ -223,11 +249,18 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # -- task
-    track_lin_vel_xy_exp = RewTerm(
-        func=mdp.track_lin_vel_xy_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    # track_lin_vel_xy_exp = RewTerm(
+    #     func=mdp.track_lin_vel_xy_exp, weight=1.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    # )
+    # track_ang_vel_z_exp = RewTerm(
+    #     func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    # )
+
+    tracking_goal_vel = RewTerm(
+        func=mdp.reward_tracking_goal_vel, weight=2.0, params={"command_name": "base_velocity", "tracking_sigma": 0.25}
     )
-    track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    delta_yaw = RewTerm(
+        func=mdp.reward_delta_yaw, weight=0.5, params={"command_name": "base_velocity"}
     )
     # -- penalties
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
@@ -247,7 +280,7 @@ class RewardsCfg:
     undesired_contacts = RewTerm(
         func=mdp.undesired_contacts,
         weight=-1.0,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*THIGH"), "threshold": 1.0},
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*THIGH"), "threshold": 0.5},
     )
     # -- optional penalties
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)
@@ -261,7 +294,7 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 0.5},
     )
 
 

@@ -17,6 +17,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+import numpy as np
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -57,6 +58,7 @@ class UniformVelocityCommand(CommandTerm):
         """
         # initialize the base class
         super().__init__(cfg, env)
+        self.lin_vel_mag = None
 
         # check configuration
         if self.cfg.heading_command and self.cfg.ranges.heading is None:
@@ -145,22 +147,29 @@ class UniformVelocityCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]):
         # get forward vector of robot
-        heading = self.robot.data.heading_w #???
+        heading = math_utils.wrap_to_pi(self.robot.data.heading_w) #???
         # sample velocity commands
-        r = torch.empty(len(env_ids), device=self.device)
-        lin_vel_mag = r.uniform_(*self.cfg.ranges.lin_vel_x)
+        r_gen = torch.empty(len(env_ids), device=self.device)
+        self.lin_vel_mag = r_gen.uniform_(*self.cfg.ranges.lin_vel_x)
 
         # -- linear velocity - x direction
-        self.vel_command_b[env_ids, 0] = lin_vel_mag * torch.cos(heading[env_ids])  # x component
+        self.vel_command_b[env_ids, 0] = self.lin_vel_mag# * self.robot.data.forward_w[env_ids,0]#torch.cos(heading[env_ids])  # x component
         # -- linear velocity - y direction
-        self.vel_command_b[env_ids, 1] = lin_vel_mag * torch.sin(heading[env_ids])  # x component
+        self.vel_command_b[env_ids, 1] = 0 #self.lin_vel_mag * self.robot.data.forward_w[env_ids,1] #torch.sin(heading[env_ids])  # y component
         # -- ang vel yaw - rotation around z
+        # import ipdb;ipdb.set_trace()
+        
         
         # heading target
         if self.cfg.heading_command:
-            self.heading_target[env_ids] = heading[env_ids]
+            
+            max_delta = torch.minimum(torch.full_like(heading[env_ids], np.pi) - heading[env_ids], torch.tensor(self.cfg.ranges.heading[1], device=self.device))
+            min_delta = torch.maximum(torch.full_like(heading[env_ids], -np.pi) - heading[env_ids], torch.tensor(self.cfg.ranges.heading[0], device=self.device))
+
+            delta_heading = min_delta + (max_delta - min_delta) * torch.rand((len(env_ids),1), device=self.device).squeeze(1)
+            self.heading_target[env_ids] = heading[env_ids]+delta_heading
             # update heading envs
-            self.is_heading_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
+            self.is_heading_env[env_ids] = r_gen.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
         
         # heading_error = math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids])
         # self.vel_command_b[env_ids, 2] = torch.clip(
@@ -169,7 +178,7 @@ class UniformVelocityCommand(CommandTerm):
         #         max=self.cfg.ranges.ang_vel_z[1],
         #     )
         # update standing envs
-        self.is_standing_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+        self.is_standing_env[env_ids] = r_gen.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
 
     # def _resample_command(self, env_ids: Sequence[int]):
     #     # sample velocity commands
@@ -203,11 +212,21 @@ class UniformVelocityCommand(CommandTerm):
             # import ipdb;ipdb.set_trace()
             # compute angular velocity
             heading_error = math_utils.wrap_to_pi(self.heading_target[env_ids] - self.robot.data.heading_w[env_ids])
+            
             self.vel_command_b[env_ids, 2] = torch.clip(
                 self.cfg.heading_control_stiffness * heading_error,
                 min=self.cfg.ranges.ang_vel_z[0],
                 max=self.cfg.ranges.ang_vel_z[1],
             )
+
+            # r_gen = torch.empty(len(env_ids), device=self.device)
+            # if self.lin_vel_mag is not None:
+            #     # self.lin_vel_mag = r_gen.uniform_(*self.cfg.ranges.lin_vel_x)
+
+            #     # -- linear velocity - x direction
+            #     self.vel_command_b[env_ids, 0] = self.lin_vel_mag * self.robot.data.forward_w[env_ids,0]#torch.cos(heading[env_ids])  # x component
+            #     # -- linear velocity - y direction
+            #     self.vel_command_b[env_ids, 1] = self.lin_vel_mag * self.robot.data.forward_w[env_ids,1] #torch.sin(heading[env_ids])  # y component
         # Enforce standing (i.e., zero velocity command) for standing envs
         # TODO: check if conversion is needed
         standing_env_ids = self.is_standing_env.nonzero(as_tuple=False).flatten()
@@ -242,6 +261,7 @@ class UniformVelocityCommand(CommandTerm):
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales and quaternions
         vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
+        # import ipdb;ipdb.set_trace()
         vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
         # display markers
         self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
@@ -304,7 +324,7 @@ class NormalVelocityCommand(UniformVelocityCommand):
         return msg
 
     def _resample_command(self, env_ids):
-        import ipdb;ipdb.set_trace()
+        # import ipdb;ipdb.set_trace()
         # sample velocity commands
         r = torch.empty(len(env_ids), device=self.device)
         # -- linear velocity - x direction

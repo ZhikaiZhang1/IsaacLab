@@ -55,6 +55,10 @@ class ContactSensorData:
         with the total contact forces acting on the sensor bodies (which also includes the tangential forces).
     """
 
+    net_forces_w_history_reward: torch.Tensor | None = None
+    force_history_reward_cnt: torch.Tensor | None = None
+
+
     force_matrix_w: torch.Tensor | None = None
     """The normal contact forces filtered between the sensor bodies and filtered bodies in world frame.
 
@@ -100,3 +104,7 @@ class ContactSensorData:
     Note:
         If the :attr:`ContactSensorCfg.track_air_time` is False, then this quantity is None.
     """
+
+    # last_contact: torch.Tensor | None = None
+    # contact_filter: torch.Tensor | None = None
+
